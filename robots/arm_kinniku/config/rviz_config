@@ -60,27 +60,27 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        quadrotor/battery:
+        arm_kinniku/battery:
           Value: true
-        quadrotor/cog:
+        arm_kinniku/cog:
           Value: true
-        quadrotor/fc:
+        arm_kinniku/fc:
           Value: true
-        quadrotor/lidar_imu:
+        arm_kinniku/lidar_imu:
           Value: true
-        quadrotor/magnet:
+        arm_kinniku/magnet:
           Value: true
-        quadrotor/main_body:
+        arm_kinniku/main_body:
           Value: true
-        quadrotor/root:
+        arm_kinniku/root:
           Value: true
-        quadrotor/thrust1:
+        arm_kinniku/thrust1:
           Value: true
-        quadrotor/thrust2:
+        arm_kinniku/thrust2:
           Value: true
-        quadrotor/thrust3:
+        arm_kinniku/thrust3:
           Value: true
-        quadrotor/thrust4:
+        arm_kinniku/thrust4:
           Value: true
         world:
           Value: true
@@ -92,25 +92,25 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          quadrotor/root:
-            quadrotor/cog:
+          arm_kinniku/root:
+            arm_kinniku/cog:
               {}
-            quadrotor/main_body:
-              quadrotor/battery:
+            arm_kinniku/main_body:
+              arm_kinniku/battery:
                 {}
-              quadrotor/fc:
+              arm_kinniku/fc:
                 {}
-              quadrotor/lidar_imu:
+              arm_kinniku/lidar_imu:
                 {}
-              quadrotor/magnet:
+              arm_kinniku/magnet:
                 {}
-              quadrotor/thrust1:
+              arm_kinniku/thrust1:
                 {}
-              quadrotor/thrust2:
+              arm_kinniku/thrust2:
                 {}
-              quadrotor/thrust3:
+              arm_kinniku/thrust3:
                 {}
-              quadrotor/thrust4:
+              arm_kinniku/thrust4:
                 {}
       Update Interval: 0
       Value: true
@@ -171,8 +171,8 @@ Visualization Manager:
           Show Trail: false
           Value: true
       Name: RobotModel
-      Robot Description: quadrotor/robot_description
-      TF Prefix: quadrotor
+      Robot Description: arm_kinniku/robot_description
+      TF Prefix: arm_kinniku
       Update Interval: 0
       Value: true
       Visual Enabled: true
@@ -197,12 +197,12 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /quadrotor/trajectory
+      Topic: /arm_kinniku/trajectory
       Unreliable: false
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /quadrotor/waypoints
+      Marker Topic: /arm_kinniku/waypoints
       Name: MarkerArray
       Namespaces:
         {}
