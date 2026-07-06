@@ -41,6 +41,7 @@
 #include "sensors/baro/baro_ms5611.h"
 #include "sensors/gps/gps_ublox.h"
 #include "sensors/encoder/mag_encoder.h"
+#include "sensors/i2c_multiplexer/switcher.h"
 
 #include "battery_status/battery_status.h"
 
@@ -101,6 +102,13 @@ osSemaphoreId uartTxSemHandle;
 /* USER CODE BEGIN PV */
 osMailQId canMsgMailHandle;
 
+osThreadId multiEncoderHandle;
+MagEncoder encoder1_("encoder_angle1");
+MagEncoder encoder2_("encoder_angle2");
+MagEncoder encoder3_("encoder_angle3");
+MagEncoder encoder4_("encoder_angle4");
+std::array<MagEncoder, 4> encoders_ = {encoder1_, encoder2_, encoder3_, encoder4_};
+
 ros::NodeHandle nh_;
 
 /* sensor instances */
@@ -146,7 +154,7 @@ void servoTaskCallback(void const * argument);
 void coreTaskEvokeCb(void const * argument);
 
 /* USER CODE BEGIN PFP */
-
+void encoderTaskCallback(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -245,29 +253,27 @@ int main(void)
   IMU_ROS_CMD::addImu(&imu_);
   baro_.init(&hi2c1, &nh_, BAROCS_GPIO_Port, BAROCS_Pin);
   battery_status_.init(&hadc1, &nh_);
-
-  /* direct servo initialization */
-  bool servo_connect = servo_.init(&huart3, &nh_, NULL);
-
-  // GPS and DirectServo share the same UART3.
-  if (servo_connect) { // no gps initialization
-    estimator_.init(&imu_, &baro_, NULL, &nh_);
-  } else { // try to connect gps if direct servo is valid
-    gps_.init(&huart3, &nh_, LED2_GPIO_Port, LED2_Pin);
-    estimator_.init(&imu_, &baro_, &gps_, &nh_);
-  }
+#if GPS_FLAG
+  gps_.init(&huart3, &nh_, LED2_GPIO_Port, LED2_Pin);
+  estimator_.init(&imu_, &baro_, &gps_, &nh_);  // imu + baro + gps => att + alt + pos(xy)
+#else 
+  estimator_.init(&imu_, &baro_, NULL, &nh_);
+#endif
+  controller_.init(&htim1, &htim4, &estimator_, &battery_status_, &nh_, &flightControlMutexHandle);
 
   FlashMemory::read(); //IMU calib data (including IMU in neurons)
 
-  DirectServo* servoptr = nullptr;
+#if SERVO_FLAG
+  servo_.init(&huart3, &nh_, NULL);
+#elif NERVE_COMM
+  Spine::init(&hfdcan1, &nh_, &estimator_, LED1_GPIO_Port, LED1_Pin);
+  Spine::useRTOS(&canMsgMailHandle); // use RTOS for CAN in spianl
+#endif
 
-  if(servo_connect) servoptr = &servo_;
-
-  controller_.init(&htim1, &htim4, &estimator_, NULL, servoptr, &battery_status_, &nh_, &flightControlMutexHandle);
-
-  bool nerve_connect = Spine::init(&hfdcan1, &nh_, &estimator_, &controller_, LED1_GPIO_Port, LED1_Pin);
-  if(nerve_connect) Spine::useRTOS(&canMsgMailHandle); // use RTOS for CAN in spianl
-
+  I2C_MultiPlexer::init(&hi2c3);
+  for (int i = 0; i < encoders_.size(); i++) {
+    encoders_.at(i).init(&hi2c3, &nh_);
+  }
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -346,6 +352,11 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+
+  /* definition and creation of task to read from multiple encoders  */
+  osThreadDef(multiEncoder, encoderTaskCallback, osPriorityLow, 0, 256);
+  multiEncoderHandle = osThreadCreate(osThread(multiEncoder), NULL);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -934,7 +945,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 19200;
+  huart3.Init.BaudRate = 1000000;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -1042,6 +1053,21 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void encoderTaskCallback(void const * argument)
+{
+  /* USER CODE BEGIN rosPublishTask */
+  for(;;)
+    {
+      for (int i = 0; i < encoders_.size(); i++) {
+        int i2c_status = I2C_MultiPlexer::changeChannel(i);
+        if(i2c_status == HAL_OK) encoders_.at(i).update();
+      }
+
+      osDelay(1); // timer is controlled inside each `update` function
+
+  }
+  /* USER CODE END rosPublishTask */
+}
 
 /* USER CODE END 4 */
 
@@ -1087,15 +1113,20 @@ void coreTaskFunc(void const * argument)
     {
       osSemaphoreWait(coreTaskSemHandle, osWaitForever);
 
+#if NERVE_COMM
       Spine::send();
-
+#endif
       imu_.update();
       baro_.update();
-      if (!servo_.connected()) gps_.update();
+#if GPS_FLAG      
+      gps_.update();
+#endif      
       estimator_.update();
       controller_.update();
 
+#if !SERVO_FLAG && NERVE_COMM
       Spine::update();
+#endif
 
       // Workaround to handle the BUSY->TIMEOUT Error problem of ETH handler in STM32H7
       // We observe this is occasionally occur, but the ETH DMA is valid.
@@ -1226,14 +1257,12 @@ __weak void canRxTask(void const * argument)
 __weak void servoTaskCallback(void const * argument)
 {
   /* USER CODE BEGIN servoTaskCallback */
-  if (!servo_.connected()) {
-    osThreadTerminate(NULL);  // remove
-    return;
-  }
   /* Infinite loop */
   for(;;)
   {
+#if SERVO_FLAG
     servo_.update();
+#endif
     osDelay(1);
   }
   /* USER CODE END servoTaskCallback */
