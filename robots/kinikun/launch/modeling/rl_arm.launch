@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- kinikun 空圧アーム RL ポリシー制御 + 簡易 GUI
+
+       前提: エンコーダ (JointState) と /mpa_cmd を実機に流すハードウェアブリッジは
+             別 launch (bringup.launch 等) で起動済みであること。 -->
+
+  <!-- モデル / バックエンド -->
+  <arg name="rl_policy_dir" default="$(find kinikun)/rl_policy"/>
+  <arg name="backend" default="auto"/>   <!-- auto | numpy | onnx | torch -->
+
+  <!-- 制御 (学習時 200Hz) -->
+  <arg name="rate" default="200"/>
+  <arg name="pressure_limit_mpa" default="0.6"/>
+  <arg name="dp_max_mpa_s" default="5.0"/>   <!-- 圧力レート制限 [MPa/s] -->
+
+  <!-- 可動域 / 安全な目標範囲 (center ± target_scale*half) -->
+  <arg name="arm_lower_rad" default="-0.7853981633974483"/> <!-- -pi/4 -->
+  <arg name="arm_upper_rad" default="0.7853981633974483"/>  <!--  pi/4 -->
+  <arg name="target_scale" default="0.7"/>
+
+  <!-- 実機とsimの関節定義合わせ (handoff §4) -->
+  <arg name="theta_sign" default="1.0"/>
+  <arg name="theta_offset" default="0.0"/>
+
+  <!-- センサ -->
+  <arg name="theta_topic" default="/kinikun1/joint_states"/>
+  <arg name="theta_index" default="2"/>
+
+  <!-- 起動時から制御を有効にするか (既定は GUI の Start 待ち) -->
+  <arg name="start_enabled" default="false"/>
+  <arg name="gui" default="true"/>
+
+  <node name="rl_arm_controller" pkg="kinikun" type="rl_arm_controller.py"
+        output="screen" respawn="false">
+    <param name="rl_policy_dir" value="$(arg rl_policy_dir)"/>
+    <param name="backend" value="$(arg backend)"/>
+    <param name="rate" value="$(arg rate)"/>
+    <param name="pressure_limit_mpa" value="$(arg pressure_limit_mpa)"/>
+    <param name="dp_max_mpa_s" value="$(arg dp_max_mpa_s)"/>
+    <param name="arm_lower_rad" value="$(arg arm_lower_rad)"/>
+    <param name="arm_upper_rad" value="$(arg arm_upper_rad)"/>
+    <param name="target_scale" value="$(arg target_scale)"/>
+    <param name="theta_sign" value="$(arg theta_sign)"/>
+    <param name="theta_offset" value="$(arg theta_offset)"/>
+    <param name="theta_topic" value="$(arg theta_topic)"/>
+    <param name="theta_index" value="$(arg theta_index)"/>
+    <param name="start_enabled" value="$(arg start_enabled)"/>
+  </node>
+
+  <node if="$(arg gui)" name="rl_arm_gui" pkg="kinikun" type="rl_arm_gui.py"
+        output="screen" respawn="false">
+    <param name="arm_lower_rad" value="$(arg arm_lower_rad)"/>
+    <param name="arm_upper_rad" value="$(arg arm_upper_rad)"/>
+    <param name="target_scale" value="$(arg target_scale)"/>
+  </node>
+
+</launch>
