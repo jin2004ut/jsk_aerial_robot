@@ -21,7 +21,7 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import Quaternion
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, Float32
+from std_msgs.msg import Bool, Float32, Float32MultiArray
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from policy_infer import load_policy  # noqa: E402
@@ -90,6 +90,7 @@ class RLArmController:
         # ---- ROS I/F ----
         self.pub_cmd = rospy.Publisher("/mpa_cmd", Quaternion, queue_size=1)
         self.pub_theta_deg = rospy.Publisher("/rl/theta_deg", Float32, queue_size=1)
+        self.pub_obs = rospy.Publisher("/rl/obs", Float32MultiArray, queue_size=1)
         rospy.Subscriber(self.theta_topic, JointState, self.cb_theta, queue_size=10)
         rospy.Subscriber("/rl/target_deg", Float32, self.cb_target, queue_size=1)
         rospy.Subscriber("/rl/enable", Bool, self.cb_enable, queue_size=1)
@@ -181,6 +182,7 @@ class RLArmController:
                 last_action[1],
                 pressure[0] - pressure[1],
             ], dtype=np.float32)
+            self.pub_obs.publish(Float32MultiArray(data=obs.tolist()))
 
             a = np.clip(np.asarray(self.policy(obs)).reshape(-1), -1.0, 1.0)
 

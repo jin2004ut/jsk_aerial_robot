@@ -114,3 +114,4 @@ robots/**/mujoco
 
 
 .codex
+robots/arm_kinniku/docs/
